@@ -1,0 +1,114 @@
+# .github/workflows/main.yml
+
+name: DevOps Assignment API Workflow
+
+on:
+  push:
+    branches: [main, staging]
+
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Create and activate venv, install dependencies, run unit tests and generate coverage report
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+          pytest app/tests/test_main.py
+          pytest app/tests/test_main.py --cov=app --cov-report=term-missing
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Push Docker image to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build, tag and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:latest
+          # tags: ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:staging
+
+      - name: Add host key to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan ${{ secrets.SERVER_HOST }} > ~/.ssh/known_hosts
+
+      # Set up SSH Agent with the private key stored in the GitHub secret
+      - name: Setup SSH Agent and add key
+        run: |
+          eval $(ssh-agent -s)
+          echo "${{ secrets.SSH_KEY }}" > key.pem
+          chmod 600 key.pem
+          ssh-add key.pem
+
+      # Connect via ssh to the server and deploy the latest version
+      - name: Deploy to server
+        run: |
+          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} -i key.pem <<EOF
+            sudo usermod -aG docker $USER
+            docker stop $(docker ps -q)
+            docker rm $(docker ps -a -q)
+            docker run --name dev-ops-assignment-api-dev -d -p 8000:80 ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:staging
+          EOF
+
+      # Run a health check on the deployed container
+      # - name: Run health check
+      #   run: |
+      #     ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} -i key.pem <<EOF
+      #       RESPONSE=$(curl -s http://localhost:8000/health | jq '.status')
+      #       if [ "$RESPONSE" != "\"ok\"" ]; then
+      #         echo "Health check failed!"
+      #         HEALTH_CHECK_SUCCED=true
+      #       fi
+      #     EOF
+
+      # Check if health check succeeded, update Docker Hub tag accordingly
+      # - name: Update Docker Hub image tag based on health check result
+      #   run: |
+      #     if [ "$HEALTH_CHECK_SUCCED" == "true" ]; then
+      #       echo "Health check passed. Renaming staging image to latest."
+      #       docker tag ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:staging ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:latest
+      #       docker push ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:latest
+      #     else
+      #       echo "Health check failed. Reverting to previous latest."
+      #       ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} -i key.pem <<EOF
+      #         sudo usermod -aG docker $USER
+      #         docker stop $(docker ps -q)
+      #         docker rm $(docker ps -a -q)
+      #         docker run --name dev-ops-assignment-api-dev -d -p 8000:80 ${{ secrets.DOCKERHUB_USERNAME }}/dev-ops-assignment-api:staging
+      #     EOF
+      #     fi
+
+      # - name: Deploy grafana and prometheus for monitoring
+      #   run: |
+      #     ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} -i key.pem <<EOF
+      #       git clone https://github.com/fregkos/dev-ops-assignment-api.git
+      #       docker compose -f dev-ops-assignment-api/docker-compose.yml down
+      #       docker compose -f dev-ops-assignment-api/docker-compose.yml up --build
+      #     EOF
+
+      # Explicitly stop the ssh-agent to remove the key from memory
+      - name: Stop SSH Agent
+        run: |
+          eval $(ssh-agent -k)
+          rm key.pem

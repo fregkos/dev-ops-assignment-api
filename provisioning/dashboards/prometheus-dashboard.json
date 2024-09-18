@@ -1,0 +1,96 @@
+{
+  "id": 17,
+  "type": "stat",
+  "title": "Configuration status",
+  "description": "",
+  "gridPos": {
+    "x": 12,
+    "y": 0,
+    "h": 4,
+    "w": 12
+  },
+  "fieldConfig": {
+    "defaults": {
+      "mappings": [
+        {
+          "options": {
+            "0": {
+              "color": "green",
+              "index": 1
+            },
+            "1": {
+              "color": "dark-red",
+              "index": 0
+            }
+          },
+          "type": "value"
+        }
+      ],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "dark-red",
+            "value": 1
+          }
+        ]
+      },
+      "unit": "short"
+    },
+    "overrides": []
+  },
+  "targets": [
+    {
+      "datasource": {
+        "uid": "${datasource}"
+      },
+      "exemplar": false,
+      "expr": "absent(up{job=\"app\"}) OR on() vector(0)",
+      "instant": true,
+      "interval": "",
+      "legendFormat": "App",
+      "refId": "A",
+      "editorMode": "code"
+    },
+    {
+      "datasource": {
+        "uid": "${datasource}"
+      },
+      "exemplar": false,
+      "expr": "absent(up{job=\"app-health\"}) OR on() vector(0)",
+      "hide": false,
+      "instant": true,
+      "interval": "",
+      "legendFormat": "Health",
+      "refId": "B"
+    }
+  ],
+  "datasource": {
+    "type": "datasource",
+    "uid": "-- Mixed --"
+  },
+  "options": {
+    "reduceOptions": {
+      "values": false,
+      "calcs": [
+        "lastNotNull"
+      ],
+      "fields": ""
+    },
+    "orientation": "auto",
+    "textMode": "name",
+    "wideLayout": true,
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "showPercentChange": false,
+    "percentChangeColorMode": "standard",
+    "text": {
+      "valueSize": 20
+    }
+  }
+}

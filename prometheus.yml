@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s  # Set the interval to scrape metrics
+
+scrape_configs:
+  - job_name: 'app'
+    static_configs:
+      - targets: ['app.localhost:80']
+      
+  # Scrape metrics from the /health endpoint
+  - job_name: 'health-check'
+    metrics_path: '/health'  
+    static_configs:
+      - targets: ['app.localhost:80']
+
+  # Scrape metrics from Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+
+alerting:
+  alertmanagers:
+    - static_configs:
+      - targets: ['localhost:9093']
+
+rule_files:
+  # Reference your alert rule files if you have any
+  # - "alert.rules"

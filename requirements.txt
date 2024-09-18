@@ -3,3 +3,4 @@ uvicorn
 pytest
 pytest-cov
 httpx
+prometheus_fastapi_instrumentator
